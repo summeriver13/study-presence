@@ -5,7 +5,7 @@ description = "在座学习状态监测：摄像头 + 可插拔人脸检测（�
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "opencv-python>=4.10",
+    "opencv-python-headless>=4.10",
     "pillow>=11.0",
     "python-dotenv>=1.0",
     "requests>=2.32",

@@ -24,9 +24,6 @@ jobs:
         with:
           enable-cache: true
 
-      - name: Install OpenCV runtime libraries
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgl1 libglib2.0-0
-
       - name: Sync dependencies
         run: uv sync --locked
 
