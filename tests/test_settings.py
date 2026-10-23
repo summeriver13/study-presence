@@ -30,6 +30,16 @@ def test_env_overrides_are_parsed() -> None:
     assert settings.absent_after == 5
 
 
+def test_db_path_is_configurable() -> None:
+    settings = Settings.from_env({"SP_DB_PATH": "./tmp/custom.db"})
+    assert settings.db_path.name == "custom.db"
+    assert settings.db_path.parent.name == "tmp"
+
+
+def test_db_path_falls_back_to_default() -> None:
+    assert Settings.from_env({}).db_path.name == "presence.db"
+
+
 def test_baidu_backend_requires_credentials() -> None:
     settings = Settings.from_env({"SP_BACKEND": "baidu"})
     with pytest.raises(ConfigError, match="SP_BAIDU_API_KEY"):

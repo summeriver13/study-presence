@@ -62,6 +62,7 @@ class Settings:
             detect_interval_s=_read_float(env, "SP_DETECT_INTERVAL_S", DEFAULT_DETECT_INTERVAL_S),
             present_after=_read_int(env, "SP_PRESENT_AFTER", DEFAULT_PRESENT_AFTER),
             absent_after=_read_int(env, "SP_ABSENT_AFTER", DEFAULT_ABSENT_AFTER),
+            db_path=_read_path(env, "SP_DB_PATH", DEFAULT_DB_PATH),
             baidu_api_key=_read_optional(env, "SP_BAIDU_API_KEY"),
             baidu_secret_key=_read_optional(env, "SP_BAIDU_SECRET_KEY"),
         )
@@ -100,6 +101,11 @@ def _read_float(env: Mapping[str, str], name: str, default: float) -> float:
         return float(raw)
     except ValueError as exc:
         raise ConfigError(f"{name} 需要数字，当前为 {raw!r}") from exc
+
+
+def _read_path(env: Mapping[str, str], name: str, default: Path) -> Path:
+    raw = env.get(name, "").strip()
+    return Path(raw).expanduser() if raw else default
 
 
 def _read_optional_path(env: Mapping[str, str], name: str) -> Path | None:
