@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import shutil
 from pathlib import Path
 from typing import Final
@@ -21,6 +22,8 @@ NMS_THRESHOLD: Final[float] = 0.3
 TOP_K: Final[int] = 5000
 DETECT_MAX_WIDTH: Final[int] = 640
 DOWNLOAD_TIMEOUT_S: Final[float] = 60.0
+
+logger = logging.getLogger(__name__)
 
 
 class LocalDetector:
@@ -47,6 +50,7 @@ class LocalDetector:
         if self._detector is not None:
             return self._detector
         ensure_model_file(self._model_path)
+        logger.info("加载 YuNet 模型：%s", self._model_path)
         self._detector = cv2.FaceDetectorYN.create(
             str(self._model_path),
             "",
@@ -63,6 +67,7 @@ def ensure_model_file(path: Path) -> Path:
     if path.is_file():
         return path
     path.parent.mkdir(parents=True, exist_ok=True)
+    logger.info("模型缺失，开始下载：%s", MODEL_URL)
     partial = path.with_name(f"{path.name}.part")
     try:
         with urlopen(MODEL_URL, timeout=DOWNLOAD_TIMEOUT_S) as response, partial.open("wb") as handle:
@@ -71,4 +76,5 @@ def ensure_model_file(path: Path) -> Path:
         partial.unlink(missing_ok=True)
         raise DetectorError(f"YuNet 模型下载失败，请手动下载 {MODEL_URL} 到 {path}") from exc
     partial.replace(path)
+    logger.info("模型下载完成：%s（%d 字节）", path, path.stat().st_size)
     return path

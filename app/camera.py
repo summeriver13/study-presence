@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from types import TracebackType
 from typing import Final, Self
 
@@ -9,6 +10,8 @@ import cv2
 
 from app.frames import Frame
 from app.sources import SourceError
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_CAMERA_INDEX: Final[int] = 0
 CAPTURE_WIDTH: Final[int] = 1280
@@ -39,6 +42,12 @@ class CameraSource:
         capture.set(cv2.CAP_PROP_FRAME_WIDTH, CAPTURE_WIDTH)
         capture.set(cv2.CAP_PROP_FRAME_HEIGHT, CAPTURE_HEIGHT)
         self._capture = capture
+        logger.info(
+            "摄像头 %d 就绪：%dx%d",
+            self._index,
+            int(capture.get(cv2.CAP_PROP_FRAME_WIDTH)),
+            int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT)),
+        )
         self._warmup()
 
     def read(self) -> Frame | None:
@@ -54,6 +63,7 @@ class CameraSource:
         capture, self._capture = self._capture, None
         if capture is not None:
             capture.release()
+            logger.info("摄像头 %d 已释放", self._index)
 
     def __enter__(self) -> Self:
         self.open()

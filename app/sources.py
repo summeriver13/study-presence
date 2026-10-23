@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from pathlib import Path
 from types import TracebackType
@@ -14,6 +15,8 @@ from app.frames import Frame
 IMAGE_SUFFIXES: Final[frozenset[str]] = frozenset({".jpg", ".jpeg", ".png", ".bmp", ".webp"})
 FALLBACK_FPS: Final[float] = 15.0
 MAX_PACE_SLEEP_S: Final[float] = 0.2
+
+logger = logging.getLogger(__name__)
 
 
 class SourceError(RuntimeError):
@@ -79,6 +82,8 @@ class VideoFileSource:
         image = cv2.imread(str(self._path))
         if image is None:
             raise SourceError(f"无法解码图片：{self._path}")
+        height, width = image.shape[:2]
+        logger.info("图片源就绪：%s（%dx%d，持续复用同一帧）", self._path, width, height)
         self._image = image
         self._frame_interval_s = 1.0 / FALLBACK_FPS
 
@@ -90,6 +95,7 @@ class VideoFileSource:
         fps = capture.get(cv2.CAP_PROP_FPS)
         self._capture = capture
         self._frame_interval_s = 1.0 / fps if fps and fps > 0 else 1.0 / FALLBACK_FPS
+        logger.info("视频源就绪：%s（%.1f fps，读完循环播放）", self._path, 1.0 / self._frame_interval_s)
 
     def _read_video_frame(self) -> Frame | None:
         capture = self._capture
@@ -98,6 +104,7 @@ class VideoFileSource:
         ok, frame = capture.read()
         if ok and frame is not None:
             return frame
+        logger.debug("视频播放到结尾，回到开头")
         capture.set(cv2.CAP_PROP_POS_FRAMES, 0)
         ok, frame = capture.read()
         return frame if ok and frame is not None else None

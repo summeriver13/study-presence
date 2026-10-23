@@ -118,7 +118,10 @@ class StudyPresenceWindow:
         )
         faces = "—" if status.face_count is None else str(status.face_count)
         duration = format_duration(status.present_seconds_today)
-        self._detail_label.configure(text=f"今日在座 {duration}　人脸 {faces}　后端 {status.backend}")
+        parts = [f"今日在座 {duration}", f"人脸 {faces}", f"后端 {status.backend}"]
+        if status.detect_ms is not None:
+            parts.append(f"检测 {status.detect_ms:.0f} ms")
+        self._detail_label.configure(text="　".join(parts))
         self._error_label.configure(text=status.error or "")
 
     def _on_close(self) -> None:

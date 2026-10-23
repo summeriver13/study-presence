@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from collections.abc import Callable
 from typing import Final
@@ -19,6 +20,8 @@ DEFAULT_TIMEOUT_S: Final[float] = 8.0
 CLOUD_MAX_WIDTH: Final[int] = 1024
 MAX_FACE_NUM: Final[int] = 5
 SUCCESS_CODE: Final[int] = 0
+
+logger = logging.getLogger(__name__)
 
 
 class BaiduDetector:
@@ -58,6 +61,7 @@ class BaiduDetector:
 
         code = int(data.get("error_code", SUCCESS_CODE))
         if code in TOKEN_INVALID_CODES and allow_refresh:
+            logger.info("access_token 失效（错误码 %d），重新获取", code)
             self._token = None
             return self._request_face_count(image, allow_refresh=False)
         if code != SUCCESS_CODE:
@@ -85,4 +89,5 @@ class BaiduDetector:
         expires_in = float(data.get("expires_in", 0))
         self._token = str(token)
         self._token_expires_at = self._clock() + max(0.0, expires_in - TOKEN_EXPIRY_MARGIN_S)
+        logger.info("access_token 已刷新，%.0f 秒后过期", self._token_expires_at - self._clock())
         return self._token
