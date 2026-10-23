@@ -4,8 +4,6 @@
 
 检测后端可插拔：默认本地离线 OpenCV YuNet（画面不出本机、零调用成本），可切到百度云人脸检测 API。
 
-![study-presence 运行截图](docs/screenshot.png)
-
 ## 判定逻辑
 
 「这个人正在学习」不是人脸检测器能回答的问题。所以这里不宣称测量专注度，只输出两个可观测、可复核的量：**在座时长**与**有交互时长**。
@@ -21,6 +19,18 @@
 1. **合格人脸**（`app/presence/criteria.py`）：人脸框中心落在画面中央 ROI（默认横向 0.2–0.8、纵向 0.05–0.95），且面积占整帧 ≥ `SP_MIN_FACE_AREA`（默认 2%）。海报、路人、远处室友都在这一步被过滤掉。
 2. **时间窗去抖**（`app/presence/tracker.py`）：占据状态要连续满足阈值秒数才翻转（`SP_PRESENT_AFTER_S` / `SP_ABSENT_AFTER_S`）。单位是秒不是检测次数，改 `--interval` 不会改变判定的时间尺度。
 3. **交互证据**（`app/activity.py`）：Windows 下读 `GetLastInputInfo` 的空闲时长，只取秒数、不取任何输入内容；其他平台降级为纯视觉，界面显示「交互检测不可用」。
+
+```mermaid
+stateDiagram-v2
+    state "离座" as absent
+    state "在座 · 无交互" as idle
+    state "在座 · 有交互" as active
+    [*] --> absent
+    absent --> idle: 合格人脸连续满 SP_PRESENT_AFTER_S 秒
+    idle --> absent: 连续无人脸满 SP_ABSENT_AFTER_S 秒
+    idle --> active: 键鼠空闲 < SP_ACTIVITY_IDLE_S
+    active --> idle: 键鼠空闲 ≥ SP_ACTIVITY_IDLE_S
+```
 
 由此得到两个数字：**在座时长**（全部区间合计）与**有交互时长**（只算 active 区间）。
 
