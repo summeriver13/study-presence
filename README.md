@@ -4,6 +4,8 @@
 
 检测后端可插拔：默认本地离线 OpenCV YuNet（画面不出本机、零调用成本），可切到百度云人脸检测 API。
 
+![study-presence 运行截图](docs/screenshot.png)
+
 ## 功能
 
 - 实时预览 + 「在座 / 离座」状态，连续 N 次观测才翻转，抑制单帧误检与短暂起身
@@ -89,7 +91,7 @@ app/
 ├── config/settings.py # SP_* 环境变量 → 不可变 Settings
 ├── detectors/         # base 协议 + local(YuNet) + baidu(云端)
 ├── presence/          # tracker 状态机、store 会话存储
-└── ui/window.py       # Tkinter 窗口，主线程只渲染
+└── ui/                # window.py 窗口（主线程只渲染）、format.py 纯展示格式化
 tests/                 # 状态机、存储、帧工具、两个后端、pipeline
 ```
 
@@ -102,6 +104,8 @@ uv run basedpyright
 uv run pytest
 ```
 
+与 `.github/workflows/ci.yml` 完全一致：push 与 PR 都会在 Ubuntu 上跑一遍。
+
 ## 隐私
 
 - `local` 后端全程离线：帧只在内存里，不落盘、不上传
@@ -111,5 +115,4 @@ uv run pytest
 
 - 按天/周的专注时长报表与图表
 - 托盘常驻 + 开机自启
-- GitHub Actions：ruff / basedpyright / pytest
 - 多目标场景下区分「本人」与他人（当前只判断人脸数量）
