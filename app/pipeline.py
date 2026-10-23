@@ -10,11 +10,11 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Final
 
-from app.camera import CameraError, CameraSource
 from app.detectors.base import Detector, DetectorError
 from app.frames import Frame, fit_box, to_rgb
 from app.presence.store import PresenceStore
 from app.presence.tracker import PresenceEvent, PresenceState, PresenceTracker
+from app.sources import FrameSource, SourceError
 
 READ_RETRY_S: Final[float] = 0.5
 MAX_READ_FAILURES: Final[int] = 3
@@ -45,7 +45,7 @@ class PresenceMonitor:
     def __init__(
         self,
         *,
-        camera: CameraSource,
+        source: FrameSource,
         detector: Detector,
         tracker: PresenceTracker,
         store: PresenceStore,
@@ -55,7 +55,7 @@ class PresenceMonitor:
     ) -> None:
         self.frames: queue.Queue[FrameUpdate] = queue.Queue(maxsize=1)
         self.statuses: queue.Queue[StatusUpdate] = queue.Queue()
-        self._camera = camera
+        self._source = source
         self._detector = detector
         self._tracker = tracker
         self._store = store
@@ -94,7 +94,7 @@ class PresenceMonitor:
                 read_failures += 1
                 if read_failures >= MAX_READ_FAILURES:
                     self._publish(
-                        self._status(None, error="相机连续读取失败，采集已停止", now=datetime.now())
+                        self._status(None, error="输入源连续读取失败，采集已停止", now=datetime.now())
                     )
                     return
                 self._stop.wait(READ_RETRY_S)
@@ -110,8 +110,8 @@ class PresenceMonitor:
 
     def _read(self) -> Frame | None:
         try:
-            return self._camera.read()
-        except CameraError:
+            return self._source.read()
+        except SourceError:
             return None
 
     def _detect(self, frame: Frame) -> tuple[int | None, str | None]:

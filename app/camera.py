@@ -8,6 +8,7 @@ from typing import Final, Self
 import cv2
 
 from app.frames import Frame
+from app.sources import SourceError
 
 DEFAULT_CAMERA_INDEX: Final[int] = 0
 CAPTURE_WIDTH: Final[int] = 1280
@@ -15,7 +16,7 @@ CAPTURE_HEIGHT: Final[int] = 720
 WARMUP_READS: Final[int] = 3
 
 
-class CameraError(RuntimeError):
+class CameraError(SourceError):
     """相机不可用或读取失败。"""
 
 

@@ -32,6 +32,7 @@ class ConfigError(ValueError):
 class Settings:
     backend: BackendName = "local"
     camera_index: int = DEFAULT_CAMERA_INDEX
+    source_path: Path | None = None
     detect_interval_s: float = DEFAULT_DETECT_INTERVAL_S
     present_after: int = DEFAULT_PRESENT_AFTER
     absent_after: int = DEFAULT_ABSENT_AFTER
@@ -57,6 +58,7 @@ class Settings:
         return cls(
             backend=_read_backend(env),
             camera_index=_read_int(env, "SP_CAMERA_INDEX", DEFAULT_CAMERA_INDEX),
+            source_path=_read_optional_path(env, "SP_SOURCE"),
             detect_interval_s=_read_float(env, "SP_DETECT_INTERVAL_S", DEFAULT_DETECT_INTERVAL_S),
             present_after=_read_int(env, "SP_PRESENT_AFTER", DEFAULT_PRESENT_AFTER),
             absent_after=_read_int(env, "SP_ABSENT_AFTER", DEFAULT_ABSENT_AFTER),
@@ -98,6 +100,11 @@ def _read_float(env: Mapping[str, str], name: str, default: float) -> float:
         return float(raw)
     except ValueError as exc:
         raise ConfigError(f"{name} 需要数字，当前为 {raw!r}") from exc
+
+
+def _read_optional_path(env: Mapping[str, str], name: str) -> Path | None:
+    raw = env.get(name, "").strip()
+    return Path(raw).expanduser() if raw else None
 
 
 def _read_optional(env: Mapping[str, str], name: str) -> str | None:

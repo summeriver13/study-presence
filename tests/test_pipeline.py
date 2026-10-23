@@ -8,12 +8,12 @@ from typing import cast
 import numpy as np
 import pytest
 
-from app.camera import CameraSource
 from app.detectors.base import DetectorError
 from app.frames import Frame
 from app.pipeline import PresenceMonitor
 from app.presence.store import PresenceStore
 from app.presence.tracker import PresenceState, PresenceTracker
+from app.sources import FrameSource
 
 FRAME = np.zeros((240, 320, 3), dtype=np.uint8)
 NOW = datetime(2026, 1, 1, 9, 0, tzinfo=UTC)
@@ -46,7 +46,7 @@ def store(tmp_path: Path) -> Iterator[PresenceStore]:
 
 def build_monitor(store: PresenceStore, detector: FakeDetector) -> PresenceMonitor:
     return PresenceMonitor(
-        camera=cast(CameraSource, SilentCamera()),
+        source=cast(FrameSource, SilentCamera()),
         detector=detector,
         tracker=PresenceTracker(present_after=1, absent_after=1),
         store=store,
