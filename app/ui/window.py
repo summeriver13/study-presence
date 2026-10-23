@@ -17,18 +17,25 @@ WINDOW_TITLE: Final[str] = "study-presence · 在座学习监测"
 CANVAS_BG: Final[str] = "#0d1117"
 TEXT_COLOR: Final[str] = "#e6edf3"
 MUTED_COLOR: Final[str] = "#8b949e"
-PRESENT_COLOR: Final[str] = "#3fb950"
+ACTIVE_COLOR: Final[str] = "#3fb950"
+IDLE_COLOR: Final[str] = "#d29922"
 ABSENT_COLOR: Final[str] = "#8b949e"
 ERROR_COLOR: Final[str] = "#d29922"
 REFRESH_MS: Final[int] = 33
 LARGE_FONT_SIZE: Final[int] = 20
 SMALL_FONT_SIZE: Final[int] = 10
+SEPARATOR: Final[str] = "　"
 FONT_CANDIDATES: Final[tuple[str, ...]] = (
     "Microsoft YaHei UI",
     "PingFang SC",
     "Noto Sans CJK SC",
     "Segoe UI",
 )
+STATE_LABELS: Final[dict[PresenceState, tuple[str, str]]] = {
+    PresenceState.ACTIVE: ("在座学习中", ACTIVE_COLOR),
+    PresenceState.IDLE: ("在座 · 无交互", IDLE_COLOR),
+    PresenceState.ABSENT: ("暂无人在座", ABSENT_COLOR),
+}
 
 
 class StudyPresenceWindow:
@@ -111,17 +118,20 @@ class StudyPresenceWindow:
         self._apply_status(status)
 
     def _apply_status(self, status: StatusUpdate) -> None:
-        present = status.state is PresenceState.PRESENT
-        self._state_label.configure(
-            text="在座学习中" if present else "暂无人在座",
-            fg=PRESENT_COLOR if present else ABSENT_COLOR,
-        )
+        text, color = STATE_LABELS[status.state]
+        self._state_label.configure(text=text, fg=color)
         faces = "—" if status.face_count is None else str(status.face_count)
-        duration = format_duration(status.present_seconds_today)
-        parts = [f"今日在座 {duration}", f"人脸 {faces}", f"后端 {status.backend}"]
+        parts = [
+            f"今日在座 {format_duration(status.present_seconds_today)}",
+            f"有交互 {format_duration(status.active_seconds_today)}",
+            f"人脸 {faces}",
+            f"后端 {status.backend}",
+        ]
         if status.detect_ms is not None:
             parts.append(f"检测 {status.detect_ms:.0f} ms")
-        self._detail_label.configure(text="　".join(parts))
+        if not status.activity_available:
+            parts.append("交互检测不可用")
+        self._detail_label.configure(text=SEPARATOR.join(parts))
         self._error_label.configure(text=status.error or "")
 
     def _on_close(self) -> None:

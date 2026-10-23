@@ -1,4 +1,8 @@
-"""把逐帧的人脸计数去抖成稳定的在座/离座状态。"""
+"""把逐帧观测去抖成「离座 / 在座无交互 / 在座有交互」三态。
+
+占据判定用时间窗去抖（与检测间隔解耦），交互状态即时反映：只要最近一次观测
+仍有键鼠活动就算「有交互」，一旦空闲超过阈值就退回「在座无交互」。
+"""
 
 from __future__ import annotations
 
@@ -7,14 +11,14 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Final
 
-DEFAULT_PRESENT_AFTER: Final[int] = 2
-DEFAULT_ABSENT_AFTER: Final[int] = 3
-_MISSING_FACE_COUNT: Final[int] = 0
+DEFAULT_PRESENT_AFTER_S: Final[float] = 4.0
+DEFAULT_ABSENT_AFTER_S: Final[float] = 6.0
 
 
 class PresenceState(StrEnum):
-    PRESENT = "present"
     ABSENT = "absent"
+    IDLE = "idle"
+    ACTIVE = "active"
 
 
 @dataclass(frozen=True, slots=True)
@@ -24,38 +28,53 @@ class PresenceEvent:
 
 
 class PresenceTracker:
-    """连续 N 次观测才切换状态，抑制检测抖动与短暂离开。"""
-
     def __init__(
         self,
         *,
-        present_after: int = DEFAULT_PRESENT_AFTER,
-        absent_after: int = DEFAULT_ABSENT_AFTER,
+        present_after_s: float = DEFAULT_PRESENT_AFTER_S,
+        absent_after_s: float = DEFAULT_ABSENT_AFTER_S,
         initial: PresenceState = PresenceState.ABSENT,
     ) -> None:
-        if present_after < 1 or absent_after < 1:
-            raise ValueError("present_after 与 absent_after 必须 >= 1")
-        self._present_after = present_after
-        self._absent_after = absent_after
+        if present_after_s <= 0 or absent_after_s <= 0:
+            raise ValueError("去抖阈值必须为正数")
+        self._present_after_s = present_after_s
+        self._absent_after_s = absent_after_s
+        self._occupied = initial is not PresenceState.ABSENT
         self._state = initial
-        self._streak = 0
+        self._pending: bool | None = None
+        self._pending_since: datetime | None = None
 
     @property
     def state(self) -> PresenceState:
         return self._state
 
-    def update(self, face_count: int, now: datetime) -> PresenceEvent | None:
-        """喂入一次观测，状态真正翻转时返回事件。"""
-        observed_present = face_count > _MISSING_FACE_COUNT
-        if observed_present == (self._state is PresenceState.PRESENT):
-            self._streak = 0
+    def update(self, *, occupied: bool, active: bool, now: datetime) -> PresenceEvent | None:
+        """喂入一次观测，最终状态真正变化时返回事件。"""
+        self._advance_occupancy(occupied, now)
+        state = self._state_for(active)
+        if state is self._state:
             return None
+        self._state = state
+        return PresenceEvent(state=state, changed_at=now)
 
-        self._streak += 1
-        threshold = self._absent_after if self._state is PresenceState.PRESENT else self._present_after
-        if self._streak < threshold:
-            return None
+    def _state_for(self, active: bool) -> PresenceState:
+        if not self._occupied:
+            return PresenceState.ABSENT
+        return PresenceState.ACTIVE if active else PresenceState.IDLE
 
-        self._state = PresenceState.ABSENT if self._state is PresenceState.PRESENT else PresenceState.PRESENT
-        self._streak = 0
-        return PresenceEvent(state=self._state, changed_at=now)
+    def _advance_occupancy(self, occupied: bool, now: datetime) -> None:
+        if occupied == self._occupied:
+            self._pending = None
+            self._pending_since = None
+            return
+        if self._pending is not occupied or self._pending_since is None:
+            self._pending = occupied
+            self._pending_since = now
+            return
+        elapsed = (now - self._pending_since).total_seconds()
+        threshold = self._present_after_s if occupied else self._absent_after_s
+        if elapsed < threshold:
+            return
+        self._occupied = occupied
+        self._pending = None
+        self._pending_since = None

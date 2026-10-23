@@ -1,6 +1,7 @@
-"""SQLite 会话存储：记录每次在座区间，支撑时长统计与报表。
+"""SQLite 会话存储：记录每段在座状态区间，支撑在座时长与有交互时长。
 
 时间一律按本地时间存储（naive），带时区的入参先转换成本地 naive。
+旧库（无 state 列）在打开时自动补列，历史记录按 active 处理。
 连接允许跨线程使用（check_same_thread=False），内部加锁串行化，UI 不直接访问。
 """
 
@@ -20,16 +21,20 @@ SCHEMA: Final[str] = """
 CREATE TABLE IF NOT EXISTS session (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     backend TEXT NOT NULL,
+    state TEXT NOT NULL DEFAULT 'active',
     started_at TEXT NOT NULL,
     ended_at TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_session_started_at ON session (started_at);
 """
+STATE_COLUMN: Final[str] = "state"
+ADD_STATE_COLUMN: Final[str] = "ALTER TABLE session ADD COLUMN state TEXT NOT NULL DEFAULT 'active'"
 
 
 @dataclass(frozen=True, slots=True)
 class SessionRecord:
     backend: str
+    state: str
     started_at: datetime
     ended_at: datetime | None
 
@@ -41,6 +46,7 @@ class PresenceStore:
         self._connection = sqlite3.connect(path, check_same_thread=False)
         self._connection.executescript(SCHEMA)
         self._connection.commit()
+        self._migrate()
         logger.debug("打开数据库：%s", path)
 
     def close(self) -> None:
@@ -48,16 +54,16 @@ class PresenceStore:
             self._connection.close()
         logger.debug("关闭数据库")
 
-    def start_session(self, backend: str, started_at: datetime) -> int:
+    def start_session(self, backend: str, state: str, started_at: datetime) -> int:
         moment = _as_local_naive(started_at)
         with self._lock:
             cursor = self._connection.execute(
-                "INSERT INTO session (backend, started_at) VALUES (?, ?)",
-                (backend, moment.isoformat()),
+                "INSERT INTO session (backend, state, started_at) VALUES (?, ?, ?)",
+                (backend, state, moment.isoformat()),
             )
             self._connection.commit()
         session_id = int(cursor.lastrowid or 0)
-        logger.debug("开启会话 %d：%s", session_id, moment.isoformat(timespec="seconds"))
+        logger.debug("开启会话 %d（%s）：%s", session_id, state, moment.isoformat(timespec="seconds"))
         return session_id
 
     def end_session(self, session_id: int, ended_at: datetime) -> None:
@@ -76,27 +82,41 @@ class PresenceStore:
         end = _as_local_naive(window_end)
         with self._lock:
             rows = self._connection.execute(
-                "SELECT backend, started_at, ended_at FROM session "
+                "SELECT backend, state, started_at, ended_at FROM session "
                 "WHERE (ended_at IS NULL OR ended_at >= ?) AND started_at <= ? ORDER BY started_at",
                 (start.isoformat(), end.isoformat()),
             ).fetchall()
         return [
             SessionRecord(
                 backend=str(backend),
+                state=str(state),
                 started_at=datetime.fromisoformat(started_raw),
                 ended_at=datetime.fromisoformat(ended_raw) if ended_raw else None,
             )
-            for backend, started_raw, ended_raw in rows
+            for backend, state, started_raw, ended_raw in rows
         ]
 
-    def seconds_between(self, window_start: datetime, window_end: datetime) -> float:
-        """窗口内累计在座秒数：未结束的会话截到 window_end，跨窗口的会话被裁剪。"""
+    def seconds_between(
+        self, window_start: datetime, window_end: datetime, *, state: str | None = None
+    ) -> float:
+        """窗口内累计秒数：state 为空时统计全部在座区间，否则只统计该状态的区间。"""
         start = _as_local_naive(window_start)
         end = _as_local_naive(window_end)
+        records = self.sessions_between(start, end)
+        if state is not None:
+            records = [record for record in records if record.state == state]
         return sum(
-            overlap_seconds(record.started_at, record.ended_at or end, start, end)
-            for record in self.sessions_between(start, end)
+            overlap_seconds(record.started_at, record.ended_at or end, start, end) for record in records
         )
+
+    def _migrate(self) -> None:
+        with self._lock:
+            columns = {row[1] for row in self._connection.execute("PRAGMA table_info(session)")}
+            if STATE_COLUMN in columns:
+                return
+            self._connection.execute(ADD_STATE_COLUMN)
+            self._connection.commit()
+        logger.info("旧数据库已补 state 列，历史记录按 active 统计")
 
 
 def overlap_seconds(

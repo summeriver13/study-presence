@@ -10,8 +10,9 @@ from urllib.error import URLError
 from urllib.request import urlopen
 
 import cv2
+import numpy as np
 
-from app.detectors.base import DetectorError
+from app.detectors.base import DetectionResult, DetectorError, FaceBox
 from app.frames import Frame, fit_width
 
 MODEL_URL: Final[str] = (
@@ -36,7 +37,7 @@ class LocalDetector:
         self._detector: cv2.FaceDetectorYN | None = None
         self._input_size: tuple[int, int] | None = None
 
-    def detect(self, frame: Frame) -> int:
+    def detect(self, frame: Frame) -> DetectionResult:
         detector = self._ensure_detector()
         prepared = fit_width(frame, DETECT_MAX_WIDTH)
         height, width = prepared.shape[:2]
@@ -44,7 +45,9 @@ class LocalDetector:
             detector.setInputSize((width, height))
             self._input_size = (width, height)
         _, faces = detector.detect(prepared)
-        return 0 if faces is None else len(faces)
+        if faces is None:
+            return DetectionResult()
+        return DetectionResult(tuple(_normalize(row, width, height) for row in faces))
 
     def _ensure_detector(self) -> cv2.FaceDetectorYN:
         if self._detector is not None:
@@ -78,3 +81,14 @@ def ensure_model_file(path: Path) -> Path:
     partial.replace(path)
     logger.info("模型下载完成：%s（%d 字节）", path, path.stat().st_size)
     return path
+
+
+def _normalize(row: np.ndarray, width: int, height: int) -> FaceBox:
+    """YuNet 每行前四位是像素坐标的 x, y, w, h。"""
+    x, y, box_width, box_height = (float(value) for value in row[:4])
+    return FaceBox(
+        x=x / width,
+        y=y / height,
+        width=box_width / width,
+        height=box_height / height,
+    )

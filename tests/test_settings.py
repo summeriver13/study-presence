@@ -10,8 +10,11 @@ def test_defaults_without_env() -> None:
     assert settings.backend == "local"
     assert settings.camera_index == 0
     assert settings.detect_interval_s == pytest.approx(2.0)
-    assert settings.present_after == 2
-    assert settings.absent_after == 3
+    assert settings.present_after_s == pytest.approx(4.0)
+    assert settings.absent_after_s == pytest.approx(6.0)
+    assert settings.min_face_area_ratio == pytest.approx(0.02)
+    assert settings.track_input is True
+    assert settings.activity_idle_s == pytest.approx(60.0)
     assert settings.baidu_api_key is None
 
 
@@ -20,14 +23,20 @@ def test_env_overrides_are_parsed() -> None:
         {
             "SP_CAMERA_INDEX": "2",
             "SP_DETECT_INTERVAL_S": "0.5",
-            "SP_PRESENT_AFTER": "1",
-            "SP_ABSENT_AFTER": "5",
+            "SP_PRESENT_AFTER_S": "2.5",
+            "SP_ABSENT_AFTER_S": "7",
+            "SP_MIN_FACE_AREA": "0.05",
+            "SP_TRACK_INPUT": "off",
+            "SP_ACTIVITY_IDLE_S": "30",
         }
     )
     assert settings.camera_index == 2
     assert settings.detect_interval_s == pytest.approx(0.5)
-    assert settings.present_after == 1
-    assert settings.absent_after == 5
+    assert settings.present_after_s == pytest.approx(2.5)
+    assert settings.absent_after_s == pytest.approx(7.0)
+    assert settings.min_face_area_ratio == pytest.approx(0.05)
+    assert settings.track_input is False
+    assert settings.activity_idle_s == pytest.approx(30.0)
 
 
 def test_db_path_is_configurable() -> None:
@@ -62,10 +71,18 @@ def test_invalid_backend_rejected(raw: str) -> None:
         Settings.from_env({"SP_BACKEND": raw})
 
 
-@pytest.mark.parametrize(("name", "value"), [("SP_CAMERA_INDEX", "abc"), ("SP_DETECT_INTERVAL_S", "fast")])
+@pytest.mark.parametrize(
+    ("name", "value"),
+    [("SP_CAMERA_INDEX", "abc"), ("SP_DETECT_INTERVAL_S", "fast"), ("SP_PRESENT_AFTER_S", "soon")],
+)
 def test_invalid_numbers_rejected(name: str, value: str) -> None:
     with pytest.raises(ConfigError, match=name):
         Settings.from_env({name: value})
+
+
+def test_invalid_boolean_rejected() -> None:
+    with pytest.raises(ConfigError, match="SP_TRACK_INPUT"):
+        Settings.from_env({"SP_TRACK_INPUT": "maybe"})
 
 
 @pytest.mark.parametrize(
@@ -73,8 +90,10 @@ def test_invalid_numbers_rejected(name: str, value: str) -> None:
     [
         {"camera_index": -1},
         {"detect_interval_s": 0.0},
-        {"present_after": 0},
-        {"absent_after": 0},
+        {"present_after_s": 0.0},
+        {"absent_after_s": 0.0},
+        {"min_face_area_ratio": 1.0},
+        {"activity_idle_s": 0.0},
     ],
 )
 def test_post_init_validates(kwargs: dict[str, object]) -> None:

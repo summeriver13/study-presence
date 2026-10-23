@@ -20,8 +20,13 @@ BACKENDS: Final[tuple[BackendName, ...]] = ("local", "baidu")
 
 DEFAULT_CAMERA_INDEX: Final[int] = 0
 DEFAULT_DETECT_INTERVAL_S: Final[float] = 2.0
-DEFAULT_PRESENT_AFTER: Final[int] = 2
-DEFAULT_ABSENT_AFTER: Final[int] = 3
+DEFAULT_PRESENT_AFTER_S: Final[float] = 4.0
+DEFAULT_ABSENT_AFTER_S: Final[float] = 6.0
+DEFAULT_MIN_FACE_AREA_RATIO: Final[float] = 0.02
+DEFAULT_ACTIVITY_IDLE_S: Final[float] = 60.0
+DEFAULT_TRACK_INPUT: Final[bool] = True
+TRUE_WORDS: Final[frozenset[str]] = frozenset({"1", "true", "yes", "on"})
+FALSE_WORDS: Final[frozenset[str]] = frozenset({"0", "false", "no", "off"})
 
 
 class ConfigError(ValueError):
@@ -34,8 +39,11 @@ class Settings:
     camera_index: int = DEFAULT_CAMERA_INDEX
     source_path: Path | None = None
     detect_interval_s: float = DEFAULT_DETECT_INTERVAL_S
-    present_after: int = DEFAULT_PRESENT_AFTER
-    absent_after: int = DEFAULT_ABSENT_AFTER
+    present_after_s: float = DEFAULT_PRESENT_AFTER_S
+    absent_after_s: float = DEFAULT_ABSENT_AFTER_S
+    min_face_area_ratio: float = DEFAULT_MIN_FACE_AREA_RATIO
+    track_input: bool = DEFAULT_TRACK_INPUT
+    activity_idle_s: float = DEFAULT_ACTIVITY_IDLE_S
     db_path: Path = DEFAULT_DB_PATH
     model_path: Path = DEFAULT_MODEL_PATH
     baidu_api_key: str | None = None
@@ -46,8 +54,12 @@ class Settings:
             raise ConfigError("camera_index 不能为负")
         if not self.detect_interval_s > 0:
             raise ConfigError("detect_interval_s 必须为正数")
-        if self.present_after < 1 or self.absent_after < 1:
-            raise ConfigError("present_after 与 absent_after 必须 >= 1")
+        if not self.present_after_s > 0 or not self.absent_after_s > 0:
+            raise ConfigError("present_after_s 与 absent_after_s 必须为正数")
+        if not 0 <= self.min_face_area_ratio < 1:
+            raise ConfigError("min_face_area_ratio 必须落在 [0, 1) 内")
+        if not self.activity_idle_s > 0:
+            raise ConfigError("activity_idle_s 必须为正数")
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> Settings:
@@ -60,8 +72,11 @@ class Settings:
             camera_index=_read_int(env, "SP_CAMERA_INDEX", DEFAULT_CAMERA_INDEX),
             source_path=_read_optional_path(env, "SP_SOURCE"),
             detect_interval_s=_read_float(env, "SP_DETECT_INTERVAL_S", DEFAULT_DETECT_INTERVAL_S),
-            present_after=_read_int(env, "SP_PRESENT_AFTER", DEFAULT_PRESENT_AFTER),
-            absent_after=_read_int(env, "SP_ABSENT_AFTER", DEFAULT_ABSENT_AFTER),
+            present_after_s=_read_float(env, "SP_PRESENT_AFTER_S", DEFAULT_PRESENT_AFTER_S),
+            absent_after_s=_read_float(env, "SP_ABSENT_AFTER_S", DEFAULT_ABSENT_AFTER_S),
+            min_face_area_ratio=_read_float(env, "SP_MIN_FACE_AREA", DEFAULT_MIN_FACE_AREA_RATIO),
+            track_input=_read_bool(env, "SP_TRACK_INPUT", DEFAULT_TRACK_INPUT),
+            activity_idle_s=_read_float(env, "SP_ACTIVITY_IDLE_S", DEFAULT_ACTIVITY_IDLE_S),
             db_path=_read_path(env, "SP_DB_PATH", DEFAULT_DB_PATH),
             baidu_api_key=_read_optional(env, "SP_BAIDU_API_KEY"),
             baidu_secret_key=_read_optional(env, "SP_BAIDU_SECRET_KEY"),
@@ -101,6 +116,17 @@ def _read_float(env: Mapping[str, str], name: str, default: float) -> float:
         return float(raw)
     except ValueError as exc:
         raise ConfigError(f"{name} 需要数字，当前为 {raw!r}") from exc
+
+
+def _read_bool(env: Mapping[str, str], name: str, default: bool) -> bool:
+    raw = env.get(name, "").strip().lower()
+    if not raw:
+        return default
+    if raw in TRUE_WORDS:
+        return True
+    if raw in FALSE_WORDS:
+        return False
+    raise ConfigError(f"{name} 需要布尔值（1/0、true/false），当前为 {raw!r}")
 
 
 def _read_path(env: Mapping[str, str], name: str, default: Path) -> Path:

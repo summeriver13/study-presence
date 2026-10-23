@@ -1,10 +1,11 @@
 [project]
 name = "study-presence"
-version = "0.1.0"
+version = "0.2.0"
 description = "在座学习状态监测：摄像头 + 可插拔人脸检测（本地 YuNet / 百度云）+ Tkinter 桌面窗口"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "numpy>=2.0",
     "opencv-python-headless>=4.10",
     "pillow>=11.0",
     "python-dotenv>=1.0",
