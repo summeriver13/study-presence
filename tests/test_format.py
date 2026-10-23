@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.ui.window import format_duration
+from app.ui.format import format_duration
 
 
 @pytest.mark.parametrize(

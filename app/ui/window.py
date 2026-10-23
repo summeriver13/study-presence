@@ -11,6 +11,7 @@ from PIL import Image, ImageTk
 
 from app.pipeline import FrameUpdate, PresenceMonitor, StatusUpdate
 from app.presence.tracker import PresenceState
+from app.ui.format import format_duration
 
 WINDOW_TITLE: Final[str] = "study-presence · 在座学习监测"
 CANVAS_BG: Final[str] = "#0d1117"
@@ -28,8 +29,6 @@ FONT_CANDIDATES: Final[tuple[str, ...]] = (
     "Noto Sans CJK SC",
     "Segoe UI",
 )
-HOURS_PER_SECOND: Final[float] = 3600.0
-MINUTES_PER_SECOND: Final[float] = 60.0
 
 
 class StudyPresenceWindow:
@@ -134,13 +133,6 @@ def _drain_last[UpdateT: (FrameUpdate, StatusUpdate)](target: queue.Queue[Update
             latest = target.get_nowait()
         except queue.Empty:
             return latest
-
-
-def format_duration(total_seconds: float) -> str:
-    seconds = max(0, int(total_seconds))
-    hours, remainder = divmod(seconds, int(HOURS_PER_SECOND))
-    minutes, secs = divmod(remainder, int(MINUTES_PER_SECOND))
-    return f"{hours:02d}:{minutes:02d}:{secs:02d}"
 
 
 def _pick_font(root: tk.Tk) -> str:
