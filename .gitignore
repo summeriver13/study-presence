@@ -1,1 +1,9 @@
-img
+__pycache__/
+*.py[cod]
+.venv/
+.env
+models/
+data/
+captures/
+.ruff_cache/
+.pytest_cache/
