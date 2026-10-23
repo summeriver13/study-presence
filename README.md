@@ -48,6 +48,7 @@ uv run study-presence          # 等价于 uv run python -m app
 uv run study-presence --camera 1        # 换摄像头
 uv run study-presence --interval 3      # 每 3 秒检测一次
 uv run study-presence --backend baidu   # 切到云端后端（需先配 .env）
+uv run study-presence --source demo.mp4 # 无摄像头：用视频/图片文件当输入（视频循环播放）
 ```
 
 ## 配置
@@ -58,6 +59,7 @@ uv run study-presence --backend baidu   # 切到云端后端（需先配 .env）
 |---|---|---|
 | `SP_BACKEND` | `local` | `local` 或 `baidu` |
 | `SP_CAMERA_INDEX` | `0` | 摄像头编号 |
+| `SP_SOURCE` | — | 视频或图片文件路径；设置后忽略摄像头 |
 | `SP_DETECT_INTERVAL_S` | `2` | 检测间隔（秒） |
 | `SP_PRESENT_AFTER` | `2` | 连续几次检测到人脸才算在座 |
 | `SP_ABSENT_AFTER` | `3` | 连续几次没检测到人脸才算离座 |
@@ -80,6 +82,7 @@ uv run study-presence --backend baidu   # 切到云端后端（需先配 .env）
 ```
 app/
 ├── __main__.py        # CLI 参数、依赖装配、启动
+├── sources.py         # 帧来源协议：摄像头 / 视频与图片文件
 ├── camera.py          # cv2.VideoCapture 的封装（唯一 open/read/close 入口）
 ├── frames.py          # 缩放、BGR→RGB、JPEG base64
 ├── pipeline.py        # worker 线程：取帧 → 检测 → 状态机 → 入库
